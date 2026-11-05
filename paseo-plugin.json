@@ -1,0 +1,8 @@
+{
+  "id": "client-commands",
+  "name": "Client commands",
+  "description": "Approve server-requested commands and run them in a terminal on your laptop.",
+  "requirements": {
+    "paseo": ">=0.15.0"
+  }
+}

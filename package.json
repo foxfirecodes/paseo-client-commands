@@ -1,0 +1,36 @@
+{
+  "name": "paseo-client-commands",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Queue host requests for approval and execution on your laptop.",
+  "files": [
+    "paseo-plugin.json",
+    "OVERVIEW.md",
+    "OVERVIEW.*.md",
+    "index.client.ts",
+    "index.client.tsx",
+    "index.server.ts",
+    "index.server.tsx",
+    "client/",
+    "server/",
+    "shared/"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-isolation=none tests/*.test.ts",
+    "check": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@getpaseo/plugin": "0.15.0",
+    "@tanstack/react-query": "^5.90.11",
+    "@types/react": "~19.2.0",
+    "@types/react-test-renderer": "^19.1.0",
+    "@types/node": "^22.0.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-test-renderer": "19.1.0",
+    "typescript": "^5.9.3",
+    "tsx": "^4.20.0",
+    "zod": "^4.4.3"
+  }
+}
