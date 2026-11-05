@@ -7,3 +7,5 @@ Commands run in a real PTY using your laptop account's login shell in interactiv
 Install this plugin on the server. Your laptop needs a connected local Paseo daemon, which the desktop app starts automatically. Requires Paseo 0.15.0 or newer, and a macOS or Linux execution host.
 
 Every command requires an individual approval. Multiple viewers share the queue; the first decision wins. Pending requests survive restarts, and uncertain launches are never retried automatically.
+
+The sidebar shows a badge with the pending count. Enable desktop notifications in **Client commands** to get an alert while Paseo is open and connected, even with the queue page closed. Clicking an alert opens the queue for review.

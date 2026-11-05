@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { approveCommand, denyCommand, listCommands, reportLaunch, type CommandRequest, type Executor } from "../shared/commands.ts";
 import { approveAndLaunch } from "./launch.ts";
 import { useDestination } from "./destination.ts";
+import { NotificationSettings } from "./notification-settings.tsx";
 
 export function QueueScreen(props: PluginScreenProps) {
   // Keep mutation state and async work bound to the initiating source host.
@@ -116,6 +117,7 @@ function HostQueue({ host, theme, layout, navigation }: PluginScreenProps) {
     <ScrollView style={{ flex: 1, backgroundColor: colors.surface0 }} contentContainerStyle={{ padding: layout.compact ? 16 : 24, gap: 18 }}>
       <Text style={{ ...text, fontSize: 24, fontWeight: "600" }}>Client commands</Text>
       <Text style={muted}>Requests from {host.label}. Choose the Paseo host running on this laptop. Commands start only when you approve them below.</Text>
+      <NotificationSettings theme={theme} />
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={{ ...text, fontWeight: "600" }}>Run commands on</Text>

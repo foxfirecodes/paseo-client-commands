@@ -33,6 +33,16 @@ Existing agents receive the tools when their next idle prompt opens a fresh sess
 paseo plugin reload client-commands
 ```
 
+This reloads only the plugin; the daemon keeps running.
+
+## Pending-request alerts
+
+The **Client commands** sidebar item shows a colored count of pending requests. In its queue screen, press **Enable notifications** and allow the browser or desktop app's permission prompt to receive desktop alerts. If notifications are blocked, allow them in your browser or system settings. This permission applies to the viewing device; native phone clients show the sidebar count but do not send desktop alerts.
+
+Alerts work while Paseo is open and connected, including when the queue page is closed. Clicking an alert focuses Paseo and opens the queue for review; it never approves or runs a command. Notification text is generic and does not include the command, reason, or captured output.
+
+Each pending request alerts once per plugin installation session. Deciding or expiring a request closes its alert; reconnecting does not repeat alerts already shown. A plugin reload can alert again for requests still awaiting approval. This is a sidebar count and desktop notification, rather than an app-wide dock badge or push notification while Paseo is closed.
+
 ## Host tools
 
 `request_client_command` queues a request and immediately returns its ID:
@@ -102,4 +112,4 @@ npm ci
 npm run check
 ```
 
-Tests cover approval races, exact command provenance, restart recovery, expiry, denial, lost launch receipts, screen teardown, queue bounds, bounded output, reconnecting collectors, notification retries, and login/interactive behavior in real PTYs. Shell-specific tests skip a shell that is not installed. Paseo's own compiler validates the client/server/shared boundaries during installation and reload.
+Tests cover approval races, exact command provenance, restart recovery, expiry, denial, lost launch receipts, screen teardown, queue bounds, bounded output, reconnecting collectors, result notification retries, desktop notification permissions/deduplication/cleanup, and login/interactive behavior in real PTYs. Shell-specific tests skip a shell that is not installed. Paseo's own compiler validates the client/server/shared boundaries during installation and reload.
