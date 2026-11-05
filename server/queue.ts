@@ -2,9 +2,12 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
-import { requestSchema, type CommandRequest, type CommandInput, type Executor, type launchResult } from "../shared/commands.ts";
+import { requestSchema, type CommandRequest, type CommandInput, type CommandResult, type Executor, type launchResult } from "../shared/commands.ts";
 
-const storedSchema = z.object({ version: z.literal(1), records: z.array(z.object({ request: requestSchema, token: z.string().uuid().optional() })).max(200) });
+const storedSchema = z.object({ version: z.literal(1), records: z.array(z.object({
+  request: requestSchema, token: z.string().uuid().optional(),
+  notificationId: z.string().uuid().optional(), notified: z.boolean().optional(),
+})).max(200) });
 type RecordEntry = z.infer<typeof storedSchema>["records"][number];
 const DAY = 24 * 60 * 60 * 1_000;
 
@@ -68,8 +71,8 @@ export class CommandQueue {
   enqueue(input: CommandInput, requester: CommandRequest["requester"]) {
     return this.transaction((records) => {
       if (records.length >= 200) {
-        const finished = records.findIndex(({ request }) => request.status !== "pending" && request.status !== "approved");
-        if (finished < 0) throw new Error("The command queue is full. Approve or deny existing requests first.");
+        const finished = records.findIndex(({ request, notificationId, notified }) => request.status !== "pending" && request.status !== "approved" && request.status !== "running" && (!notificationId || notified));
+        if (finished < 0) throw new Error("The command queue is full. Decide pending requests or wait for running commands and result delivery.");
         records.splice(finished, 1);
       }
       const request: CommandRequest = { ...input, requester, id: randomUUID(), status: "pending", createdAt: this.now(), expiresAt: this.now() + DAY };
@@ -105,9 +108,40 @@ export class CommandQueue {
       if (!entry || entry.token !== token) throw new Error("This approval is no longer owned by this client.");
       if (entry.request.status !== "approved") return entry.request;
       entry.request = result.status === "launched"
-        ? { ...entry.request, ...result, launchedAt: this.now() }
+        ? { ...entry.request, ...result, status: "running", launchedAt: this.now() }
         : { ...entry.request, ...result, decidedAt: this.now() };
       return entry.request;
+    });
+  }
+
+  running() {
+    return this.transaction((records) => records.flatMap(({ request, token }) => request.status === "running" && token
+      ? [{ id: request.id, token, executor: request.executor, terminalId: request.terminalId }] : []));
+  }
+
+  complete(id: string, token: string, result: CommandResult) {
+    return this.transaction((records) => {
+      const entry = records.find(({ request }) => request.id === id);
+      if (!entry || entry.token !== token) throw new Error("This result does not belong to this command.");
+      if (entry.request.status === "completed" || entry.request.status === "failed") return entry.request;
+      if (entry.request.status !== "running") throw new Error("This command is not running.");
+      entry.request = { ...entry.request, status: result.exitCode === 0 && !result.error ? "completed" : "failed", result, finishedAt: this.now() };
+      entry.notificationId = randomUUID();
+      entry.notified = false;
+      return entry.request;
+    });
+  }
+
+  notifications() {
+    return this.transaction((records) => records.flatMap(({ request, notificationId, notified }) =>
+      (request.status === "completed" || request.status === "failed") && notificationId && !notified
+        ? [{ request, notificationId }] : []));
+  }
+
+  acknowledgeNotification(id: string, notificationId: string) {
+    return this.transaction((records) => {
+      const entry = records.find(({ request }) => request.id === id);
+      if (entry?.notificationId === notificationId) entry.notified = true;
     });
   }
 

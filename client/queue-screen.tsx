@@ -98,7 +98,12 @@ function HostQueue({ host, theme, layout, navigation }: PluginScreenProps) {
           </View>
         ) : <Text style={text}>{statusText(request)}</Text>}
         {request.status === "uncertain" && <Text selectable style={text}>{request.error} Check the laptop's terminals before requesting this command again.</Text>}
-        {(request.status === "launched" || request.status === "approved" || request.status === "uncertain") && navigation && (
+        {(request.status === "completed" || request.status === "failed") && <>
+          {request.result.error && <Text selectable style={text}>{request.result.error}</Text>}
+          <Text style={muted}>Combined stdout/stderr{request.result.truncated ? " · truncated tail" : ""}</Text>
+          <Text selectable style={{ ...text, fontFamily: "monospace" }}>{request.result.output || "(no captured output)"}</Text>
+        </>}
+        {"executor" in request && navigation && (
           <Pressable accessibilityRole="button" style={button} onPress={() => navigation.openWorkspace({ serverId: request.executor.serverId, workspaceId: request.executor.workspaceId })}>
             <Text style={text}>Open {request.executor.label} workspace</Text>
           </Pressable>
@@ -166,6 +171,9 @@ function statusText(request: CommandRequest) {
     case "pending": return "Awaiting approval";
     case "approved": return `Approved for ${request.executor.label}; launch not yet confirmed. Do not submit it again.`;
     case "launched": return `Terminal launched on ${request.executor.label} · ${request.terminalId}. Check the terminal for output and exit status.`;
+    case "running": return `Running on ${request.executor.label} · ${request.terminalId}`;
+    case "completed": return `Completed on ${request.executor.label} · exit code ${request.result.exitCode}`;
+    case "failed": return `Failed on ${request.executor.label} · ${request.result.exitCode === null ? "exit code unknown" : `exit code ${request.result.exitCode}`}`;
     case "denied": return "Denied";
     case "expired": return "Expired without approval";
     case "uncertain": return `Launch uncertain on ${request.executor.label}`;

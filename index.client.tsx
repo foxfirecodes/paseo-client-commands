@@ -1,9 +1,10 @@
-import { useRpc, type PluginClientContext, type PluginSidebarItemProps } from "@getpaseo/plugin/client";
+import { getPaseoClient, useRpc, type PluginClientContext, type PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Text } from "react-native";
 import { QueueScreen } from "./client/queue-screen.tsx";
 import { listCommands } from "./shared/commands.ts";
+import { collectResults } from "./client/results.ts";
 
 function QueueItem({ host, theme, currentScreen, openScreen }: PluginSidebarItemProps) {
   const list = useRpc(listCommands);
@@ -15,10 +16,11 @@ function QueueItem({ host, theme, currentScreen, openScreen }: PluginSidebarItem
 }
 
 export default function contribute(client: PluginClientContext) {
+  const stopResults = collectResults(client, getPaseoClient);
   client.addScreen({ id: "queue", title: "Client commands", Component: QueueScreen });
   client.addSidebarHeaderItem({ id: "queue", title: "Client commands", Component: QueueItem });
   client.addCommandCenterItem({ id: "open-queue", title: "Review client commands", icon: "Terminal", context: "global",
     onSelect: ({ openScreen }) => openScreen({ screenId: "queue" }),
   });
-  return () => {};
+  return stopResults;
 }

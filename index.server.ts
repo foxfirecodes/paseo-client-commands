@@ -6,6 +6,6 @@ import { registerCommands } from "./server/register.ts";
 
 export default function contribute(server: PluginServerContext) {
   const queue = new CommandQueue(join(process.env.PASEO_HOME ?? join(homedir(), ".paseo"), "client-commands", "queue.json"));
-  registerCommands(server, queue);
-  return () => queue.close();
+  const stop = registerCommands(server, queue);
+  return () => { stop(); return queue.close(); };
 }

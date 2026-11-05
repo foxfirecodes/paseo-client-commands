@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { shellLauncher } from "../client/launch.ts";
+import { readCompletion } from "../shared/output.ts";
+
+const token = "380ad358-b6fa-4eaf-9da0-72439580712d";
 
 // A real controlling PTY checks interactivity, login startup, stdin, output, and exit
 // behavior. The account database seam selects each installed shell without editing users.
@@ -12,7 +15,7 @@ const ptyDriver = `
 import errno, os, pty, select, signal, sys, time
 pid, fd = pty.fork()
 if pid == 0:
-    os.execve('/bin/sh', ['/bin/sh', '-c', sys.argv[1], 'paseo-client-command', sys.argv[2]], os.environ)
+    os.execve('/bin/sh', ['/bin/sh', '-c', sys.argv[1], 'paseo-client-command', sys.argv[2], sys.argv[3]], os.environ)
 output = b''
 deadline = time.monotonic() + 15
 sent = False
@@ -58,7 +61,7 @@ for (const shell of ["bash", "zsh", "fish"]) {
       : shell === "bash"
         ? "shopt -q login_shell && [[ $- == *i* ]] && test -t 0 && test -t 1 && printf 'LOGIN_INTERACTIVE_TTY\\n'"
         : "[[ -o login && -o interactive ]] && test -t 0 && test -t 1 && printf 'LOGIN_INTERACTIVE_TTY\\n'";
-    const result = spawnSync("python3", ["-c", ptyDriver, shellLauncher, `${checks}\npaseo_probe\nprintf '%s\\n' 'literal $() backticks \` spaces'\nexit 7`], {
+    const result = spawnSync("python3", ["-c", ptyDriver, shellLauncher, `${checks}\npaseo_probe\nprintf '%s\\n' 'literal $() backticks \` spaces'\nprintf 'STDERR_CAPTURED\\n' >&2\nexit 7`, token], {
       encoding: "utf8", timeout: 20_000,
       env: { ...process.env, HOME: directory, XDG_CONFIG_HOME: join(directory, ".config"), ZDOTDIR: directory, PATH: `${bin}:${process.env.PATH}`, TERM: "xterm-256color" },
     });
@@ -67,5 +70,11 @@ for (const shell of ["bash", "zsh", "fish"]) {
     assert.match(result.stdout, /STARTUP_LOADED/);
     assert.ok(result.stdout.includes("literal $() backticks ` spaces"));
     assert.match(result.stdout, /Command exited with status 7/);
+    const lines = result.stdout.replaceAll("\r\n", "\n").split("\n");
+    const completion = readCompletion(token, { lines, totalLines: lines.length });
+    assert.equal(completion?.exitCode, 7);
+    assert.ok(completion?.output.includes("literal $() backticks ` spaces"));
+    assert.ok(completion?.output.includes("STDERR_CAPTURED"));
+    assert.ok(!completion?.output.includes("Press Enter to close"));
   });
 }

@@ -2,7 +2,7 @@
 
 Let a Paseo agent on your server request a laptop command without copying it into another terminal. Open **Client commands**, review the command and its reason, select your laptop and workspace, then press **Yep, run on Laptop**.
 
-Commands run in a real PTY using your laptop account's login shell in interactive mode. Your normal bash, zsh, or fish startup files load. Output and exit status stay in the laptop terminal.
+Commands run in a real PTY using your laptop account's login shell in interactive mode. Your normal bash, zsh, or fish startup files load. Output stays visible in the terminal, and the requesting agent receives a bounded copy of the combined stdout/stderr and exit status when the command finishes. Results can also be retrieved by request ID.
 
 Install this plugin on the server. Your laptop needs a connected local Paseo daemon, which the desktop app starts automatically. Requires Paseo 0.15.0 or newer, and a macOS or Linux execution host.
 

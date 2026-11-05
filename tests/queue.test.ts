@@ -68,7 +68,7 @@ test("only the winning approval token can report a launch; tokens are not listed
   await assert.rejects(queue.report(request.id, "wrong", { status: "launched", terminalId: "terminal" }), /owned/);
   await queue.report(request.id, approval.token, { status: "launched", terminalId: "terminal" });
   const repeated = await queue.report(request.id, approval.token, { status: "uncertain", error: "late failure" });
-  assert.equal(repeated.status, "launched");
+  assert.equal(repeated.status, "running");
 });
 
 test("a read-only poll does not rewrite the queue file", async (t) => {

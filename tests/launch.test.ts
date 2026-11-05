@@ -30,8 +30,9 @@ test("nothing launches until approval resolves, and the exact reviewed command t
       assert.equal(options.workspaceId, "local-workspace");
       assert.equal(options.cwd, request.cwd);
       assert.equal(options.command, "/bin/sh");
-      assert.equal(options.args.length, 4);
+      assert.equal(options.args.length, 5);
       assert.equal(options.args[3], request.command);
+      assert.equal(options.args[4], token);
       return { id: "terminal-1" };
     },
     report: async (input) => { events.push("report"); assert.deepEqual(input.result, { status: "launched", terminalId: "terminal-1" }); },
@@ -104,5 +105,5 @@ test("two simultaneous viewing clients reach one local terminal through the real
   };
   await Promise.allSettled([approveAndLaunch(pending, executor, dependencies), approveAndLaunch(pending, executor, dependencies)]);
   assert.equal(launches, 1);
-  assert.equal((await queue.list())[0].status, "launched");
+  assert.equal((await queue.list())[0].status, "running");
 });

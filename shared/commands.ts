@@ -22,12 +22,26 @@ const base = commandInput.extend({
   requester: z.object({ agentId: z.string(), title: z.string(), workspaceId: z.string().nullable() }),
 });
 const approved = base.extend({ executor: executorSchema, approvedAt: z.number() });
+export const MAX_OUTPUT_CHARS = 16_384;
+export const CAPTURE_LINES = 1_024;
+export const commandResult = z.object({
+  exitCode: z.number().int().min(0).max(255).nullable(),
+  output: z.string().max(MAX_OUTPUT_CHARS),
+  outputStream: z.literal("combined"),
+  truncated: z.boolean(),
+  error: z.string().max(4_000).optional(),
+});
+export type CommandResult = z.infer<typeof commandResult>;
+const running = approved.extend({ terminalId: z.string(), launchedAt: z.number() });
 export const requestSchema = z.discriminatedUnion("status", [
   base.extend({ status: z.literal("pending") }),
   base.extend({ status: z.literal("denied"), decidedAt: z.number() }),
   base.extend({ status: z.literal("expired"), decidedAt: z.number() }),
   approved.extend({ status: z.literal("approved") }),
   approved.extend({ status: z.literal("launched"), terminalId: z.string(), launchedAt: z.number() }),
+  running.extend({ status: z.literal("running") }),
+  running.extend({ status: z.literal("completed"), finishedAt: z.number(), result: commandResult }),
+  running.extend({ status: z.literal("failed"), finishedAt: z.number(), result: commandResult }),
   approved.extend({ status: z.literal("uncertain"), error: z.string(), decidedAt: z.number() }),
 ]);
 export type CommandRequest = z.infer<typeof requestSchema>;
@@ -52,5 +66,18 @@ export const launchResult = z.discriminatedUnion("status", [
 export const reportLaunch = defineRpc({
   name: "commands.report",
   input: z.object({ id: z.string().uuid(), token: z.string().uuid(), result: launchResult }),
+  output: requestSchema,
+});
+
+export const runningCommand = z.object({
+  id: z.string().uuid(), token: z.string().uuid(), executor: executorSchema, terminalId: z.string(),
+});
+export type RunningCommand = z.infer<typeof runningCommand>;
+export const watchCommands = defineRpc({
+  name: "commands.watch", input: z.object({}), output: z.array(runningCommand),
+});
+export const reportCompletion = defineRpc({
+  name: "commands.complete",
+  input: z.object({ id: z.string().uuid(), token: z.string().uuid(), result: commandResult }),
   output: requestSchema,
 });

@@ -2,7 +2,7 @@
 
 Your server agent requests a command. You review it in Paseo on your laptop, press **Yep, run on Laptop**, and it starts in a real laptop terminal using your account's login shell in interactive mode.
 
-The plugin installs on the **server**. Its client screen arrives through the existing Paseo connection. Your laptop's **local Paseo daemon** owns execution; the server never receives its connection credentials or command output.
+The plugin installs on the **server**. Its client screen arrives through the existing Paseo connection. Your laptop's **local Paseo daemon** owns execution; the server never receives its connection credentials. A bounded copy of the finished command's terminal output is sent back to the server and requesting agent.
 
 Requires Paseo **0.15.0 or newer** on both hosts and the viewing app. The laptop must run macOS or Linux with bash, zsh, or fish as its account login shell. The desktop app starts its local daemon automatically. For a browser client, start a local daemon and connect it to that app. Mobile clients can approve commands for a connected laptop host; they cannot execute shells on the phone.
 
@@ -46,7 +46,7 @@ paseo plugin reload client-commands
 
 Optional `cwd` is an absolute **laptop** directory. Omit it to use the selected laptop workspace. Commands use the laptop's shell syntax, so use `xdg-open` on Linux or fish syntax when appropriate. The agent's server working directory is never forwarded implicitly.
 
-`client_command_status` accepts `{ "id": "<request ID>" }`. An agent can inspect only its own requests. Statuses are:
+`client_command_status` accepts `{ "id": "<request ID>" }`. An agent can inspect only its own requests, including their persisted results. Statuses are:
 
 | Status | Meaning |
 | --- | --- |
@@ -54,10 +54,35 @@ Optional `cwd` is an absolute **laptop** directory. Omit it to use the selected 
 | `denied` | Rejected; cannot execute. |
 | `expired` | Unapproved for 24 hours; cannot execute. |
 | `approved` | One viewer owns the approval; a launch receipt has not arrived. |
-| `launched` | The selected daemon created a PTY terminal. Check that terminal for output and success. |
+| `running` | The selected daemon created a PTY terminal; completion is not confirmed yet. |
+| `completed` | The command exited with code 0. `result` contains output and the exit code. |
+| `failed` | The command exited nonzero, or capture failed. A capture failure has `exitCode: null` and an `error`. |
 | `uncertain` | Approval was interrupted or launch could not be confirmed. Inspect laptop terminals before requesting it again. |
+| `launched` | Legacy request started before completion capture was added; inspect its terminal manually. |
 
-**Launched does not mean succeeded.** The terminal runs `/bin/sh` as a launcher, resolves the local account's login shell through `getent` or macOS `dscl`, and invokes it with `-l -i -c`. The command is passed as one argument, preserving quoting and newlines. After the command exits, the terminal displays its exit status and waits for Enter, keeping output visible. Open the laptop workspace to interact with prompts, enter passwords, or use Ctrl-C. The login shell reads your normal startup files.
+**Running does not mean succeeded.** The terminal runs `/bin/sh` as a launcher, resolves the local account's login shell through `getent` or macOS `dscl`, and invokes it with `-l -i -c`. The command is passed as one argument, preserving quoting and newlines. After the command exits, the terminal emits a command-specific completion marker, displays its exit status, and waits for Enter, keeping output visible. Open the laptop workspace to interact with prompts, enter passwords, or use Ctrl-C. The login shell reads your normal startup files.
+
+## Completion results
+
+The requesting agent receives an asynchronous JSON message with `type: "client_command_result"`, the `requestId`, status, and result fields. The result is also available later through `client_command_status`:
+
+```json
+{
+  "status": "completed",
+  "result": {
+    "exitCode": 0,
+    "output": "hello from laptop",
+    "outputStream": "combined",
+    "truncated": false
+  }
+}
+```
+
+- `output` is the tail of **combined stdout/stderr terminal text**, capped at **16,384 characters**. It is rendered terminal text with ANSI sequences stripped, rather than separate raw stdout/stderr streams. Shell startup output can be included. Terminal redraws and alternate-screen applications affect what remains in scrollback.
+- Collection reads at most the last 1,024 terminal lines. `truncated` is true if scrollback or the character limit removed earlier output. A completion notification is additionally capped at **20,000 characters**, including JSON escaping and metadata; it can contain a shorter tail than the saved result.
+- The client installation monitors running requests every two seconds even when the queue page is closed. It resumes from the server's running-request list after a reconnect or plugin reload, without re-executing commands. At least one viewing client must be connected to both the server and selected laptop for collection to proceed.
+- Leave the terminal open until the result appears in Paseo. Closing or killing it before collection yields a failed capture with an unknown exit code; it never fabricates success.
+- Completion and its pending notification are saved together. The server retries notification delivery every ten seconds with a stable message ID. A delivery retry never reruns the laptop command, and a duplicate completion report never creates a second notification. If delivery cannot be confirmed, the result remains retrievable by ID.
 
 ## Queue and approval behavior
 
@@ -65,8 +90,8 @@ Optional `cwd` is an absolute **laptop** directory. Omit it to use the selected 
 - Reading the queue and receiving an approval update never execute anything. Execution is called directly from the approve button's action, using the command that was displayed at that click.
 - The queue survives server restarts in `$PASEO_HOME/client-commands/queue.json` (default `~/.paseo`). Set `PASEO_HOME` when using a custom daemon home. This plugin uses one queue per daemon home; install it once per home, under the `client-commands` ID.
 - A restart turns unfinished approvals into `uncertain`. Network failures and lost receipts never cause an automatic retry. This favors preventing duplicate side effects over guaranteeing execution after a disconnect.
-- Up to 200 requests are retained. Old decided requests are evicted for new requests; pending and approved requests are preserved. The queue file is private to the daemon user. Treat its command text as sensitive.
-- Output stays in the laptop terminal. There is no remote input, cancellation, output upload, or blanket approval tool. The host tool only queues requests and reads status.
+- Up to 200 requests are retained. Old decided requests are evicted for new requests; pending, approved, running, and undelivered-result requests are preserved. The queue file is private to the daemon user. Treat its command text and captured output as sensitive.
+- Output remains visible in the laptop terminal, with a bounded copy returned to the host. There is no remote input, cancellation, or blanket approval tool. The host tools queue requests and read status/results.
 
 ## Development
 
@@ -77,4 +102,4 @@ npm ci
 npm run check
 ```
 
-Tests cover approval races, exact command provenance, restart recovery, expiry, denial, lost launch receipts, screen teardown, queue bounds, and login/interactive behavior in real PTYs. Shell-specific tests skip a shell that is not installed. Paseo's own compiler validates the client/server/shared boundaries during installation and reload.
+Tests cover approval races, exact command provenance, restart recovery, expiry, denial, lost launch receipts, screen teardown, queue bounds, bounded output, reconnecting collectors, notification retries, and login/interactive behavior in real PTYs. Shell-specific tests skip a shell that is not installed. Paseo's own compiler validates the client/server/shared boundaries during installation and reload.

@@ -4,22 +4,26 @@ import type { approveCommand, reportLaunch, CommandRequest, Executor } from "../
 // Resolve the account's login shell locally. All request text is a separate argv value.
 // The outer sh keeps output visible after the interactive login shell exits.
 export const shellLauncher = `
+run_command() {
 shell=
 if command -v getent >/dev/null 2>&1; then
-  entry=$(getent passwd "$(id -u)") || exit 1
+  entry=$(getent passwd "$(id -u)") || return 1
   shell=\${entry##*:}
 elif [ "$(uname -s)" = Darwin ]; then
-  entry=$(/usr/bin/dscl . -read "/Users/$(id -un)" UserShell) || exit 1
+  entry=$(/usr/bin/dscl . -read "/Users/$(id -un)" UserShell) || return 1
   shell=\${entry#UserShell: }
 else
   shell=\${SHELL:-}
 fi
 case "$shell" in
   /*/bash|/*/zsh|/*/fish) ;;
-  *) printf 'Unsupported login shell: %s. Use bash, zsh, or fish.\\n' "$shell"; exit 1 ;;
+  *) printf 'Unsupported login shell: %s. Use bash, zsh, or fish.\\n' "$shell"; return 126 ;;
 esac
 "$shell" -l -i -c "$1"
+}
+run_command "$1"
 result=$?
+if [ -n "$2" ]; then printf '\\nPASEO_RESULT_%s:%s\\n' "$2" "$result"; fi
 printf '\\nCommand exited with status %s. Press Enter to close.\\n' "$result"
 IFS= read -r reply
 exit "$result"
@@ -49,7 +53,7 @@ export async function approveAndLaunch(request: CommandRequest, executor: Execut
       cwd: request.cwd ?? executor.directory,
       name: `Client command: ${request.id.slice(0, 8)}`,
       command: "/bin/sh",
-      args: ["-c", shellLauncher, "paseo-client-command", request.command],
+      args: ["-c", shellLauncher, "paseo-client-command", request.command, approval.token],
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
